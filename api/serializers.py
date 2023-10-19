@@ -1,9 +1,9 @@
 from rest_framework import serializers
-from .models import User, Opportunity, Application
+from .models import Applicant, Opportunity, Application
 
-class UserSerializer(serializers.ModelSerializer):
+class ApplicantSerializer(serializers.ModelSerializer):
     class Meta:
-        model = User
+        model = Application
         fields = '__all__'
 
 class OpportunitySerializer(serializers.ModelSerializer):
@@ -15,3 +15,5 @@ class ApplicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Application
         fields = '__all__'
+class CosineSimilaritySerializer(serializers.Serializer):
+    profile_matching = serializers.CharField()

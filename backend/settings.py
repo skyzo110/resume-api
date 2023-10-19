@@ -50,7 +50,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-       'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
 ]
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
@@ -100,11 +100,11 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'data',
+        'NAME': 'guru99',
         'USER': 'postgres',
-        'PASSWORD':'pass',
-        'HOST': 'localhost',  # Database server hostname
-        'PORT': '5432',       # Database server port
+        'PASSWORD': 'pass',
+        'HOST': 'localhost',  # Or use the IP of your Docker host
+        'PORT': '5432',
     }
 }
 # Password validation
