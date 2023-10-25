@@ -1,5 +1,6 @@
 from django.db import models
-
+from django.utils import timezone
+from django.contrib.auth.models import AbstractUser
 
 class User(models.Model):
     class Meta:
@@ -7,30 +8,29 @@ class User(models.Model):
         db_table = "users"
     
     id = models.AutoField(primary_key=True)
+    username = models.CharField(max_length=255)
     email = models.EmailField()
-    password = models.CharField(max_length=255, default="*******")
+    password = models.CharField(max_length=255)
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
     
-    def __str__(self):
-        return f"{self.first_name} {self.last_name}"
+
 class Document(models.Model):
     class Meta:
         app_label = 'api'
     id = models.AutoField(primary_key=True)    
-    base64_data = models.CharField(max_length=10000)
+    base64_data = models.CharField()
 class Applicant(User):
  
     first_name = models.CharField(max_length=255)
     last_name = models.CharField(max_length=255)
-    phone_number = models.CharField(max_length=255)  # Allowing for non-numeric characters
+    phone_number = models.CharField(max_length=255)  
     linkedin_profile = models.URLField(max_length=255)
     city = models.CharField(max_length=255)
     state = models.CharField(max_length=255)
-    zip_code = models.CharField(max_length=255)  # Allowing for non-numeric characters
+    zip_code = models.CharField(max_length=255)  
     document = models.OneToOneField(Document, on_delete=models.CASCADE)
-
     active = models.BooleanField(default=True)   
     user_ptr = models.OneToOneField(
         User,
@@ -39,7 +39,9 @@ class Applicant(User):
         
     )
     active = True
-
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
     
 class HR(User):
   
@@ -50,35 +52,46 @@ class HR(User):
     )
    
 
+class CustomUser(AbstractUser):
+    class Meta:
+        app_label = 'api'
+    # Add any additional fields you need for your custom user model
+    email = models.EmailField(unique=True)
+
+    # Specify the required fields
+    REQUIRED_FIELDS = ['email']
 
 class Opportunity(models.Model):
     class Meta:
         app_label = 'api'
+    
     id = models.AutoField(primary_key=True)
     title = models.CharField(max_length=255)
-    select_value = models.IntegerField(default=0)  # Change to IntegerField
+    select_value = models.PositiveIntegerField(default=0)  # Use PositiveIntegerField
     description = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     requirements = models.TextField()
     benefits = models.TextField()
     due_date = models.DateField()
-    accepted_count = models.PositiveIntegerField(default=0 ,editable=False)
-
-    @property
-    def current_status(self):
-        if self.accepted_count == self.select_value:  # Change to Integer comparison
-            return "Closed"
-        else:
-            return "Open"
+    accepted_count = models.PositiveIntegerField(default=0, editable=False)
+    status = models.CharField(max_length=10, default='Open', editable=False)
 
     def save(self, *args, **kwargs):
         # Calculate the accepted count before saving
-        accepted_applications_count = Application.objects.filter(
-            opportunity=self, accepted=True  # Change to Boolean
+        accepted_applications_count = SortApplication.objects.filter(
+            opportunity=self, accepted=True
         ).count()
         self.accepted_count = accepted_applications_count
 
         super(Opportunity, self).save(*args, **kwargs)
+    @property
+    def current_status(self):
+        if self.accepted_count == self.select_value:
+            return "Closed"
+        else:
+            return "Open"
+
+    
 
     def __str__(self):
         return self.title
@@ -91,57 +104,37 @@ class Opportunity(models.Model):
 
 
 class Application(models.Model):
-    score = models.CharField(max_length=255, blank=True, editable=False)  # Mark the 'score' field as not editable
-
+    score = models.FloatField(null=True, blank=True, editable=False)
     applicant = models.ForeignKey(Applicant, on_delete=models.CASCADE, related_name='applications_as_applicant')
     opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE, related_name='applications_as_opportunity')
-    accepted = models.BooleanField(default=None)
-    #created date
+    created_date = models.DateTimeField(auto_now_add=True, editable=False)  # Used auto_now_add to set the created_date
 
     def save(self, *args, **kwargs):
-        if not self.score:
-            # Calculate the score only if it's not already set
-            # You need to insert your cosine similarity calculation here
-            cosine_similarity_result = 0  # Calculate the cosine similarity result
+        if self.score is None:
+            # Calculate the cosine similarity here and assign it to the score field
+            cosine_similarity_result = self.calculate_cosine_similarity()
 
-            # Update the score field with the calculated result
-            self.score = str(cosine_similarity_result * 100) + '%'
+            # Update the score field with the calculated result as a numeric value
+            self.score = cosine_similarity_result
 
         super(Application, self).save(*args, **kwargs)
 
+
+    def calculate_cosine_similarity(self):
+        # Perform your cosine similarity calculation here
+        # You need to define how you're calculating the similarity between the applicant and opportunity
+        # Replace the following line with your actual calculation
+        cosine_similarity_result = "none"  
+
+        return cosine_similarity_result
+
+    def get_formatted_score(self):
+        return f'{self.score:.2%}'  # Format the score as a percentage with two decimal places
+
     def __str__(self):
-        return f"Application for {self.opportunity} by {self.applicant} scoring {self.score}"
+        return f"Application for {self.opportunity} by {self.applicant} scoring {self.get_formatted_score()}"
+    
+class SortApplication(Application):
+    accepted = models.BooleanField(default=None)
 
-
-class ApplicationStorage:
-    def accept_application(self, application_id):
-        """Method to accept an application and store it."""
-        try:
-            application = Application.objects.get(id=application_id)
-            application.accepted = True
-            application.save()
-        except Application.DoesNotExist:
-            return False
-        return True
-
-    def reject_application(self, application_id):
-        """Method to reject an application and store it."""
-        try:
-            application = Application.objects.get(id=application_id)
-            application.accepted = False
-            application.save()
-        except Application.DoesNotExist:
-            return False
-        return True
-
-    def get_accepted_applications(self):
-        """Method to retrieve the list of accepted applications."""
-        return Application.objects.filter(accepted=True)
-
-    def get_rejected_applications(self):
-        """Method to retrieve the list of rejected applications."""
-        return Application.objects.filter(accepted=False)
-    def get_recent_applications(self):
-        """Method to retrieve the list of new applications."""
-        return Application.objects.filter(accepted=None)
 

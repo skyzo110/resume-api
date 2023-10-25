@@ -6,15 +6,22 @@ class DocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Document 
         fields = '__all__'
+        
+    
 
 class ApplicantSerializer(serializers.ModelSerializer):
-    document = DocumentSerializer ()  # Nested serializer for the document
+   # document = DocumentSerializer ()  # Nested serializer for the document
     class Meta:
         model = Applicant
         fields = '__all__'
     def create(self, validated_data):
         print(validated_data)
-        document_data = validated_data.pop('document')  # Extract the document data
+        document = validated_data.pop('document')  # Extract the document data
+        document_data = {
+            'id': document.id,  # Use the ID of the Document object
+            'base64_data': document.base64_data,  # Replace this with the actual field name
+        }
+
         print(document_data)
         document, created = Document.objects.get_or_create(**document_data)
         
