@@ -2,22 +2,113 @@ import base64
 from django.shortcuts import render
 from inspect import Traceback
 import pdb
+from django.urls import reverse
+from django.utils.html import format_html
+from django.contrib import admin
 from django.contrib.auth.decorators import login_required, user_passes_test
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework import generics
 from rest_framework import status
+from rest_framework.views import APIView
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
 from django.http import Http404
-from datetime import datetime
+from datetime import datetime, timedelta
 from rest_framework.permissions import AllowAny
-from .models import Opportunity, Applicant, Application, SortApplication
-from .serializers import DocumentSerializer, OpportunitySerializer, ApplicantSerializer, ApplicationSerializer, UserLoginSerializer, UserSignInSerializer
-from .service import submit_application, user_login
-from django.contrib.auth import authenticate, login
+from .models import Opportunity, Applicant, Application, SortApplication, User
+from .serializers import DocumentSerializer, OpportunitySerializer, ApplicantSerializer, ApplicationSerializer ,UserSerializer 
+from .service import submit_application, authenticate_user
+from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth.admin import UserAdmin
 from datetime import date
-from django.http import HttpResponse
-from .forms import AuthenticationForm
+from django.http import HttpResponseRedirect
+from .forms import CustomUserAdminForm
 from django.contrib.auth.views import LoginView
+import jwt
+from django.conf import settings
+
+
+
+def user_list(request):
+    users = User.objects.all()  # Query the users from your model
+    context = {'users': users}
+    return render(request, 'user_list.html', context)
+
+User = get_user_model()
+admin.site.unregister(User)
+
+@admin.register(User)
+class CustomUserAdmin(UserAdmin):
+    add_form = CustomUserAdminForm
+
+    def add_view(self, request, form_url='', extra_context=None):
+        if request.method == 'POST':
+            # Create a new user with the submitted data
+            form = self.add_form(request.POST)
+            if form.is_valid():
+                user = form.save()
+                self.message_user(request, "User created successfully")
+                return HttpResponseRedirect(reverse('admin:yourapp_customuser_changelist'))
+        else:
+            form = self.add_form()
+
+        return super(CustomUserAdmin, self).add_view(request, form_url, extra_context)
+
+
+
+@api_view(['POST'])
+def login(request):
+    if request.method == 'POST':
+        data = request.data
+        email = data.get("email")
+        password = data.get("password")
+
+        # Authenticate the user
+        user = authenticate(request, email=email, password=password)
+        print(user)
+        if user is not None:
+            # Authentication successful, Django SimpleJWT handles token generation
+            if user.is_superuser:
+                return Response({'message': 'HR logged in successfully'}, status=status.HTTP_201_CREATED)
+            else:
+                return Response({'message': 'User logged in successfully'}, status=status.HTTP_201_CREATED)
+        else:
+            # Authentication failed
+            return Response({'message': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == status.HTTP_200_OK:
+            # Include the user_id in the response
+            response.data['user_id'] = request.user.id
+        return response
+
+
+class GenerateToken(APIView):
+    def post(self, request):
+        refresh = RefreshToken.for_user(request.user)
+        access_token = str(refresh.access_token)
+        return Response({'access_token': access_token})
+
+
+class RegistrationView(APIView):
+    def post(self, request):
+        serializer = UserSerializer(data=request.data)
+        if serializer.is_valid():
+            is_superuser = request.data.get("is_superuser", False)  # Set to True if user should be a superuser
+            user = serializer.save(is_staff=is_superuser, is_superuser=is_superuser)
+
+            if is_superuser:
+                return Response({'message': 'HR registered successfully'}, status=status.HTTP_201_CREATED)
+            else:
+                return Response({'message': 'User registered successfully'}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
 
 @api_view(['POST'])
 def submit_opportunity(request):
@@ -226,48 +317,7 @@ class ApplicationRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView)
     queryset = Application.objects.all()
     serializer_class = ApplicationSerializer
 
-class CustomLoginView(LoginView):
-    template_name = 'authentication/login.html' 
 
-# @login_required
-# def applicant_view(request):
-#     if request.user.is_authenticated:
-#         # User is logged in, so you can access user-related information
-#         email = request.user.email
 
-#         # Your view logic here, for example, render a template
-#         return render(request, 'http://127.0.0.1:3000/auth/signin-2', {
-#             'email': email,
-            
-#         })
-#     else:
-#         # User is not logged in, handle it accordingly
-#         return HttpResponse("Please log in to access this page.")
-# def is_hr(user):
-#     return user.is_authenticated and user.is_hr  # Define your custom test logic
 
-# @user_passes_test(is_hr)
-# def hr_view(request):
-#     # Ensure the user is an HR user (authenticated and is_hr is True)
-#     if request.user.is_authenticated and request.user.is_hr:
-#         # HR-specific view logic here
-#         hr_email = request.user.email  
-#         return render(request, 'hr_template.html', {'hr_name': hr_email})
-#     else:
-#         return HttpResponse("You don't have permission to access this page.")
-    
-# def sign_in(request):
-#      if request.method == 'POST':
-#          form = AuthenticationForm(request, request.POST)
-#          if form.is_valid():
-#              # Authenticate the user
-#              email = form.cleaned_data['username']
-#              password = form.cleaned_data['password']
-#              user = authenticate(request, username=email, password=password)
-#              if user is not None:
-#                  # Log the user in
-#                  login(request, user)
-#                  return redirect('profile')  # Redirect to the user's profile or another page
-#      else:
-#          form = AuthenticationForm()
-#      return render(request, 'sign_in.html', {'form': form})    
+

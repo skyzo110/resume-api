@@ -4,7 +4,7 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from django.views.decorators.csrf import csrf_exempt
 from sklearn.metrics.pairwise import cosine_similarity
-from .models import Applicant, Application, Opportunity
+from .models import Application, Opportunity, Applicant,User
 from .serializers import ApplicationSerializer, UserSerializer
 import nltk
 from sklearn.metrics.pairwise import linear_kernel
@@ -16,6 +16,11 @@ from django.db import transaction
 
 nltk.download('stopwords')
 nltk.download('punkt')
+
+
+
+
+
 
 
 
@@ -82,23 +87,24 @@ def checkExistance(userId, opportunityId, file):
     ).exists()
     
     return exists
+
 def apply(request):
 
-  user = request.user  # Assuming you're using DRF's authentication system
-  serializer = ApplicationSerializer(data=request.data)
+   user = request.user  # Assuming you're using DRF's authentication system
+   serializer = ApplicationSerializer(data=request.data)
 
-  if serializer.is_valid():
-        # Check if the user has already applied to this opportunity with the same file
-        user_id = user.id
-        opportunity_id = serializer.validated_data['opportunity'].id
-        resume = serializer.validated_data['resume']
+   if serializer.is_valid():
+         # Check if the user has already applied to this opportunity with the same file
+         user_id = user.id
+         opportunity_id = serializer.validated_data['opportunity'].id
+         resume = serializer.validated_data['resume']
 
-        if checkExistance(user_id=user_id, opportunity_id=opportunity_id, resume=resume) :
-            return  {'detail': 'You have already applied to this opportunity with the same file.'} 
+         if checkExistance(user_id=user_id, opportunity_id=opportunity_id, resume=resume) :
+             return  {'detail': 'You have already applied to this opportunity with the same file.'} 
 
-        # Create a new application
-        serializer.save(user=user)
-        return  {'detail': 'Application submitted successfully.'}  
+         # Create a new application
+         serializer.save(user=user)
+         return  {'detail': 'Application submitted successfully.'}  
   
   # Function to calculate cosine similarity
 def calculate_cosine_similarity(text1, text2):
@@ -162,17 +168,13 @@ def submit_application(applicant_id, opportunity_id):
         print("Exception occurred:", str(e))
         return None  # Return None in case of an exception
 
-def user_login(username, password):
-    user = authenticate(username=username, password=password)
-
-    if user is not None:
-        if user.is_applicant:
-            return "applicant"
-        elif user.is_hr:
-            return "hr"
-    else:
-        # Handle invalid login
-        return "invalid"  # You can return an error message or code
+def authenticate_user(email, password):
+        try:
+            user = User.objects.get(email=email,password=password)
+            pdb.set_trace()
+            return user
+        except :
+            return None
 
 
              

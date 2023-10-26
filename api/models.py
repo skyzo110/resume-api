@@ -1,19 +1,34 @@
 from django.db import models
 from django.utils import timezone
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
+from django.contrib.auth import get_user_model
+from .managers import CustomUserManager
 
-class User(models.Model):
+
+
+
+
+
+
+
+class User(AbstractBaseUser, PermissionsMixin):
     class Meta:
         app_label = 'api'
-        db_table = "users"
-    
     id = models.AutoField(primary_key=True)
-    username = models.CharField(max_length=255)
-    email = models.EmailField()
-    password = models.CharField(max_length=255)
+    username = models.CharField(unique=True)
+    email = models.EmailField(unique=True)
+    is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
 
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
+    objects = CustomUserManager()
+
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username']
+
+    def __str__(self):
+        return self.email
+
+    
     
 
 class Document(models.Model):
@@ -21,8 +36,13 @@ class Document(models.Model):
         app_label = 'api'
     id = models.AutoField(primary_key=True)    
     base64_data = models.CharField()
-class Applicant(User):
- 
+
+
+class Applicant(models.Model):
+    class Meta:
+        app_label = 'api'
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
     first_name = models.CharField(max_length=255)
     last_name = models.CharField(max_length=255)
     phone_number = models.CharField(max_length=255)  
@@ -30,36 +50,17 @@ class Applicant(User):
     city = models.CharField(max_length=255)
     state = models.CharField(max_length=255)
     zip_code = models.CharField(max_length=255)  
-    document = models.OneToOneField(Document, on_delete=models.CASCADE)
-    active = models.BooleanField(default=True)   
-    user_ptr = models.OneToOneField(
-        User,
-        on_delete=models.CASCADE,
-        parent_link=True,
-        
-    )
-    active = True
+    document = models.OneToOneField(Document, on_delete=models.CASCADE)  
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name}"
     
-class HR(User):
-  
-    user_ptr = models.OneToOneField(
-        User,
-        on_delete=models.CASCADE,
-        parent_link=True,
-    )
+class HR(models.Model):
+   class Meta:
+        app_label = 'api'
+   user = models.OneToOneField(User, on_delete=models.CASCADE)
    
 
-class CustomUser(AbstractUser):
-    class Meta:
-        app_label = 'api'
-    # Add any additional fields you need for your custom user model
-    email = models.EmailField(unique=True)
-
-    # Specify the required fields
-    REQUIRED_FIELDS = ['email']
 
 class Opportunity(models.Model):
     class Meta:

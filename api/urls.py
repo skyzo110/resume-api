@@ -18,10 +18,12 @@ urlpatterns=[
     path('accept-application/<int:application_id>/', views.accept_application, name='accept-application'),
     path('reject-application/<int:application_id>/', views.reject_application, name='reject-application'),
     path('get-recent-applications/', views.get_recent_applications, name='get_recent_applications'),
-    path('login/', auth_views.LoginView.as_view(), name='login'),
-    path('loginhr/', auth_views.LoginView.as_view(), name='hr_login'),
-    path('logout/', auth_views.LogoutView.as_view(), name='logout'),
-    path('signin/', auth_views.LoginView.as_view(), name='signin'),
+    path('api/login', views.login , name='custom_login'),
+    path('api/token/', views.CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/generate/', views.GenerateToken.as_view(), name='generate_token'),
+    path('api/register/', views.RegistrationView.as_view(), name='user-registration'),
+    path('users/', views.user_list, name='user-list'),
+
 ]
 
 

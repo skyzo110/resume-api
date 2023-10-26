@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -27,8 +28,15 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
-AUTH_USER_MODEL = 'api.CustomUser'
-LOGIN_URL = 'login'
+AUTH_USER_MODEL = 'api.User'
+
+
+AUTHENTICATION_BACKENDS = (
+    'api.backend.EmailBackend',
+    'django.contrib.auth.backends.ModelBackend',
+)
+
+LOGIN_URL = 'api/login'
 LOGOUT_URL = 'logout'
 # Application definition
 
@@ -41,8 +49,22 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'api'
+    'rest_framework_simplejwt',
+    'api',
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
+    'SLIDING_TOKEN_LIFETIME': timedelta(days=7),
+    'SLIDING_TOKEN_LIFETIME_REFRESH_DELTA': timedelta(days=6),
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
