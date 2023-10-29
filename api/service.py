@@ -13,6 +13,8 @@ from django.contrib.auth import authenticate
 import base64
 import io
 from django.db import transaction
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.core.mail import send_mail
 
 nltk.download('stopwords')
 nltk.download('punkt')
@@ -73,6 +75,7 @@ def preprocess_job_description(job_description_text):
     preprocessed_text = ' '.join(filtered_tokens)
 
     return preprocessed_text
+
 
 
 
@@ -168,18 +171,23 @@ def submit_application(applicant_id, opportunity_id):
         print("Exception occurred:", str(e))
         return None  # Return None in case of an exception
 
-def authenticate_user(email, password):
-        try:
-            user = User.objects.get(email=email,password=password)
-            pdb.set_trace()
-            return user
-        except :
-            return None
 
 
-             
+def generate_token(user):
+    refresh = RefreshToken.for_user(user)
+    return {
+        'refresh': str(refresh),
+        'access': str(refresh.access_token),
+    }
 
-    
+
+def send_emails( ):
+        subject = 'Hello, World'
+        message = 'This is the message body.'
+        from_email = 'gundiamohamed@gmail.com'
+        recipient_list = ['recipient1@yopmail.com']
+
+        send_mail(subject, message, from_email, recipient_list)
+ 
 
 
-       

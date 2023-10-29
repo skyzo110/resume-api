@@ -1,4 +1,5 @@
 import base64
+from django.forms import ValidationError
 from django.shortcuts import render
 from inspect import Traceback
 import pdb
@@ -11,15 +12,14 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework import generics
 from rest_framework import status
 from rest_framework.views import APIView
-from rest_framework_simplejwt.views import TokenObtainPairView
+
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView
 from django.http import Http404
 from datetime import datetime, timedelta
 from rest_framework.permissions import AllowAny
 from .models import Opportunity, Applicant, Application, SortApplication, User
 from .serializers import DocumentSerializer, OpportunitySerializer, ApplicantSerializer, ApplicationSerializer ,UserSerializer 
-from .service import submit_application, authenticate_user
+from .service import submit_application, generate_token, send_emails
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.admin import UserAdmin
 from datetime import date
@@ -27,7 +27,7 @@ from django.http import HttpResponseRedirect
 from .forms import CustomUserAdminForm
 from django.contrib.auth.views import LoginView
 import jwt
-from django.conf import settings
+
 
 
 
@@ -39,22 +39,24 @@ def user_list(request):
 User = get_user_model()
 admin.site.unregister(User)
 
-@admin.register(User)
-class CustomUserAdmin(UserAdmin):
-    add_form = CustomUserAdminForm
+# @admin.register(User)
+# class CustomUserAdmin(UserAdmin):
+#     add_form = CustomUserAdminForm
 
-    def add_view(self, request, form_url='', extra_context=None):
-        if request.method == 'POST':
-            # Create a new user with the submitted data
-            form = self.add_form(request.POST)
-            if form.is_valid():
-                user = form.save()
-                self.message_user(request, "User created successfully")
-                return HttpResponseRedirect(reverse('admin:yourapp_customuser_changelist'))
-        else:
-            form = self.add_form()
+#     def add_view(self, request, form_url='', extra_context=None):
+#         if request.method == 'POST':
+#             # Create a new user with the submitted data
+#             form = self.add_form(request.POST)
+#             if form.is_valid():
+#                 user = form.save()
+#                 self.message_user(request, "User created successfully")
+#                 return HttpResponseRedirect(reverse('admin:yourapp_customuser_changelist'))
+#         else:
+#             form = self.add_form()
 
-        return super(CustomUserAdmin, self).add_view(request, form_url, extra_context)
+#         return super(CustomUserAdmin, self).add_view(request, form_url, extra_context)
+
+
 
 
 
@@ -67,46 +69,50 @@ def login(request):
 
         # Authenticate the user
         user = authenticate(request, email=email, password=password)
-        print(user)
+ 
+        #check if user is HR or not
+        if user.id==1:
+            user.is_superuser = True
+            
+
         if user is not None:
-            # Authentication successful, Django SimpleJWT handles token generation
+            # Generate a token for the authenticated user
+            token = generate_token(user)
+
             if user.is_superuser:
-                return Response({'message': 'HR logged in successfully'}, status=status.HTTP_201_CREATED)
+                return Response({'message': 'HR logged in successfully', 'token': token,"id":user.id,"is_superusr":user.is_superuser}, status=status.HTTP_200_OK)
             else:
-                return Response({'message': 'User logged in successfully'}, status=status.HTTP_201_CREATED)
+                return Response({'message': 'User logged in successfully', 'token': token,"id":user.id,"is_superusr":user.is_superuser}, status=status.HTTP_200_OK)
         else:
-            # Authentication failed
             return Response({'message': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
 
-class CustomTokenObtainPairView(TokenObtainPairView):
-    def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
-        if response.status_code == status.HTTP_200_OK:
-            # Include the user_id in the response
-            response.data['user_id'] = request.user.id
-        return response
+       # 
 
 
-class GenerateToken(APIView):
-    def post(self, request):
-        refresh = RefreshToken.for_user(request.user)
-        access_token = str(refresh.access_token)
-        return Response({'access_token': access_token})
 
 
 class RegistrationView(APIView):
     def post(self, request):
+       # print(request.headers)
+   
         serializer = UserSerializer(data=request.data)
+        print("request.data",request.data  )
         if serializer.is_valid():
-            is_superuser = request.data.get("is_superuser", False)  # Set to True if user should be a superuser
-            user = serializer.save(is_staff=is_superuser, is_superuser=is_superuser)
+            print("valid")
+            is_superuser = request.data.get("is_superuser", False)  # Set to True if the user should be a superuser
+            user = serializer.save(is_staff=False, is_superuser=False)
 
             if is_superuser:
-                return Response({'message': 'HR registered successfully'}, status=status.HTTP_201_CREATED)
+                message = 'HR registered successfully'
             else:
-                return Response({'message': 'User registered successfully'}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                message = 'User registered successfully'
 
+            # Generate a token for the registered user
+            token = generate_token(user)
+
+            # Include the token in the response
+            return Response({'message': message, 'access_token': token,"id":user.id }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 
@@ -131,6 +137,8 @@ def submit_opportunity(request):
     return Response({'error': 'Invalid request method'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
+
+
 @api_view(['GET'])
 def get_all_opportunities(request):
     opportunities = Opportunity.objects.all()
@@ -150,6 +158,11 @@ def get_all_opportunities(request):
     serializer = OpportunitySerializer(opportunities, many=True)
     
     return Response(serializer.data)
+
+
+class OpportunityRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Opportunity.objects.all()
+    serializer_class = OpportunitySerializer
 
 @api_view(['GET'])
 def get_available_opportunities(request):
@@ -179,18 +192,18 @@ def apply(request, applicant_id, opportunity_id):
 
         if similarity_score is not None:
             # Create and save a new Application instance with the similarity score as a numeric value
-            applicant = Applicant.objects.get(pk=applicant_id)
-            opportunity = Opportunity.objects.get(pk=opportunity_id)
+            # applicant = Applicant.objects.get(pk=applicant_id)
+            # opportunity = Opportunity.objects.get(pk=opportunity_id)
 
             # Format the similarity score as a percentage with two decimal places
-            formatted_score = round(similarity_score, 2)
+            # formatted_score = round(similarity_score, 2)
 
-            application = Application(
-                applicant=applicant,
-                opportunity=opportunity,
-                score=formatted_score
-            )
-            application.save()
+            # application = Application(
+            #     applicant=applicant,
+            #     opportunity=opportunity,
+            #     score=formatted_score
+            # )
+            #application.save()
 
             return Response({'detail': 'Application submitted successfully.'}, status=status.HTTP_200_OK)
         else:
@@ -210,11 +223,13 @@ def accept_application(request, application_id):
                 applicant=application.applicant,
                 opportunity=application.opportunity,
                 score=application.score,
-                accepted=True  # Set as accepted
+                accepted=1  # Set as accepted
             )
-
+            
             sorted_application.save()  # Save the sorted application
             application.delete()  # Delete the original application
+
+            send_emails() # Send acceptance emails
 
             return Response({'message': 'Application accepted successfully.'}, status=status.HTTP_200_OK)
         except Application.DoesNotExist:
@@ -231,7 +246,7 @@ def reject_application(request, application_id):
                 applicant=application.applicant,
                 opportunity=application.opportunity,
                 score=application.score,
-                accepted=False  # Set as rejected
+                accepted=2  # Set as rejected
             )
 
             sorted_application.save()  # Save the sorted application
@@ -246,8 +261,9 @@ def reject_application(request, application_id):
 def get_recent_applications(request):
     try:
         # Customize the queryset to retrieve recent applications as per your logic
-        # For example, you can order by created_date to get the most recent applications
-        recent_applications = Application.objects.order_by('-created_date')[:10]  # Get the top 10 most recent applications
+        # For example, you can order by created_date to get the most recent applications and filter by accepted status
+        
+        recent_applications = Application.objects.filter(accepted=0).order_by('-created_date')[:10]  
 
         serializer = ApplicationSerializer(recent_applications, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -260,7 +276,7 @@ def get_recent_applications(request):
 def submit_applicant(request):
     if request.method == 'POST':
         data = request.data
-
+        print(data)
         # Handle the document data
         document_data = data.get('document', {})
 
@@ -268,17 +284,23 @@ def submit_applicant(request):
         document_serializer = DocumentSerializer(data=document_data)
 
         if document_serializer.is_valid():
+            print("valid document serializer")
             # Save the document and get the serialized data as a dictionary
             document = document_serializer.save()
             document_data = document_serializer.data
 
             # Update the data with the document ID
             data['document'] = document.id
-
+          
+        
+            print(data)
+             
             # Create an ApplicantSerializer instance for applicant validation
             applicant_serializer = ApplicantSerializer(data=data)
-
+           
             if applicant_serializer.is_valid():
+                print("valid applicant serializer")
+                pdb.set_trace()
                 # Save the applicant
                 applicant_serializer.save()
                 return Response(applicant_serializer.data, status=status.HTTP_201_CREATED)
@@ -309,6 +331,20 @@ def get_all_applicants(request):
     
     return Response({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
+@api_view(['GET'])
+def get_sorted_applicants(request, filter):
+    if filter not in ('0', '1', '2'):
+        return Response({'error': 'Invalid filter value. Use 0 or 1 or 2.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    all_applicants = SortApplication.applicant.filter(accepted=filter)
+
+    if not all_applicants:
+        return Response(None, status=status.HTTP_204_NO_CONTENT)  # Return None with a 204 No Content status
+    else:
+        serializer = ApplicationSerializer(all_applicants, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 class ApplicationListCreateView(generics.ListCreateAPIView):
     queryset = Application.objects.all()
     serializer_class = ApplicationSerializer
@@ -318,6 +354,22 @@ class ApplicationRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView)
     serializer_class = ApplicationSerializer
 
 
+@api_view(['GET'])
+def get_user_by_id(request, user_id):
+    try:
+        user = User.objects.get(id=user_id)
+        serializer = UserSerializer(user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
+class ApplicantCreateView(generics.ListCreateAPIView):
+    queryset = Applicant.objects.all()
+    serializer_class = ApplicantSerializer
+    lookup_field = 'user_ptr__id'
+class ApplicantRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Applicant.objects.all()
+    serializer_class = ApplicantSerializer
+    lookup_field = 'user_ptr__id'
 

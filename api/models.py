@@ -6,19 +6,15 @@ from .managers import CustomUserManager
 
 
 
-
-
-
-
-
 class User(AbstractBaseUser, PermissionsMixin):
     class Meta:
         app_label = 'api'
     id = models.AutoField(primary_key=True)
-    username = models.CharField(unique=True)
-    email = models.EmailField(unique=True)
+    username = models.CharField( unique= True)
+    email = models.EmailField(unique= True )
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+    
 
     objects = CustomUserManager()
 
@@ -38,11 +34,10 @@ class Document(models.Model):
     base64_data = models.CharField()
 
 
-class Applicant(models.Model):
+class Applicant(User):
     class Meta:
         app_label = 'api'
-
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    #user = models.OneToOneField(User, on_delete=models.CASCADE )
     first_name = models.CharField(max_length=255)
     last_name = models.CharField(max_length=255)
     phone_number = models.CharField(max_length=255)  
@@ -51,15 +46,18 @@ class Applicant(models.Model):
     state = models.CharField(max_length=255)
     zip_code = models.CharField(max_length=255)  
     document = models.OneToOneField(Document, on_delete=models.CASCADE)  
+
+     
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name}"
+     
     
-class HR(models.Model):
+class HR(User):
    class Meta:
         app_label = 'api'
-   user = models.OneToOneField(User, on_delete=models.CASCADE)
-   
+   #user = models.OneToOneField(User, on_delete=models.CASCADE)
+   user_ptr = models.OneToOneField(User, on_delete=models.CASCADE, parent_link=True)
 
 
 class Opportunity(models.Model):
@@ -109,7 +107,7 @@ class Application(models.Model):
     applicant = models.ForeignKey(Applicant, on_delete=models.CASCADE, related_name='applications_as_applicant')
     opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE, related_name='applications_as_opportunity')
     created_date = models.DateTimeField(auto_now_add=True, editable=False)  # Used auto_now_add to set the created_date
-
+    accepted = models.PositiveIntegerField(default=0, editable=False)  # Use PositiveIntegerField
     def save(self, *args, **kwargs):
         if self.score is None:
             # Calculate the cosine similarity here and assign it to the score field
@@ -136,6 +134,6 @@ class Application(models.Model):
         return f"Application for {self.opportunity} by {self.applicant} scoring {self.get_formatted_score()}"
     
 class SortApplication(Application):
-    accepted = models.BooleanField(default=None)
+   application_ptr = models.OneToOneField(Application, on_delete=models.CASCADE, parent_link=True)   
 
 

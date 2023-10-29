@@ -1,6 +1,7 @@
 from . import views
 from django.urls import path
 from django.contrib.auth import views as auth_views
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
  
 
@@ -8,6 +9,7 @@ urlpatterns=[
     path('api/apply/<int:applicant_id>/<int:opportunity_id>/', views.apply, name='apply'),
     path('submit-opportunity', views.submit_opportunity, name='submit_opportunity'),
     path('opportunities', views.get_all_opportunities, name='get_all_opportunities'),
+    path('opportunity/<int:pk>/', views.OpportunityRetrieveUpdateDeleteView.as_view(), name='opportunity-detail'),
     path('submit_applicant', views.submit_applicant, name='submit_user'),
     path('applicants', views.get_all_applicants, name='get_all_users'),
     path('api/applications/', views.ApplicationListCreateView.as_view(), name='application-list-create'),
@@ -19,11 +21,14 @@ urlpatterns=[
     path('reject-application/<int:application_id>/', views.reject_application, name='reject-application'),
     path('get-recent-applications/', views.get_recent_applications, name='get_recent_applications'),
     path('api/login', views.login , name='custom_login'),
-    path('api/token/', views.CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/generate/', views.GenerateToken.as_view(), name='generate_token'),
     path('api/register/', views.RegistrationView.as_view(), name='user-registration'),
     path('users/', views.user_list, name='user-list'),
-
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/user/<int:user_id>/', views.get_user_by_id, name='get_user_by_id'),
+    path('api/sortedapplicants/<int:filter/', views.get_sorted_applicants, name='get_sorted_applicant'),
+    path('api/applicants/<int:user_ptr__id>/', views.ApplicantRetrieveUpdateDeleteView.as_view(), name='applicant-detail'),
+    
 ]
 
 
