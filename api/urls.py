@@ -10,7 +10,7 @@ urlpatterns=[
     path('submit-opportunity', views.submit_opportunity, name='submit_opportunity'),
     path('opportunities', views.get_all_opportunities, name='get_all_opportunities'),
     path('opportunity/<int:pk>/', views.OpportunityRetrieveUpdateDeleteView.as_view(), name='opportunity-detail'),
-    path('submit_applicant', views.submit_applicant, name='submit_user'),
+    path('submit_applicant/<int:applicant_id>', views.submit_applicant, name='submit_user'),
     path('applicants', views.get_all_applicants, name='get_all_users'),
     path('api/applications/', views.ApplicationListCreateView.as_view(), name='application-list-create'),
     path('api/applications/<int:pk>/', views.ApplicationRetrieveUpdateDeleteView.as_view(), name='application-retrieve-update-delete'),
@@ -26,8 +26,10 @@ urlpatterns=[
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/user/<int:user_id>/', views.get_user_by_id, name='get_user_by_id'),
+    path('api/applicant/<int:user_id>/', views.get_applicant_by_id, name='get_user_by_id'),
+       path('api/document/<int:document_id>/', views.get_document_by_id, name='get_document_by_id'),
     path('api/sortedapplicants/<int:filter/', views.get_sorted_applicants, name='get_sorted_applicant'),
-    path('api/applicants/<int:user_ptr__id>/', views.ApplicantRetrieveUpdateDeleteView.as_view(), name='applicant-detail'),
+    
     
 ]
 

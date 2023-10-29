@@ -43,14 +43,8 @@ class ApplicantSerializer(serializers.ModelSerializer):
 
         print(document_data)
         document, created = Document.objects.get_or_create(**document_data)
-        if validated_data.get('id'):
-            print("saving new applicant")
-            pdb.set_trace()
-            applicant = Applicant.objects.update(document=document, **validated_data)
-        elif validated_data.get('id') is None:
-            print("saving new applicant")
-            pdb.set_trace()
-            applicant = Applicant.objects.create(document=document, **validated_data)
+    
+        applicant = Applicant.objects.create(document=document, **validated_data)
       
    
  

@@ -1,4 +1,6 @@
 import base64
+import shutil
+import os
 from django.forms import ValidationError
 from django.shortcuts import render
 from inspect import Traceback
@@ -17,7 +19,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.http import Http404
 from datetime import datetime, timedelta
 from rest_framework.permissions import AllowAny
-from .models import Opportunity, Applicant, Application, SortApplication, User
+from .models import Document, Opportunity, Applicant, Application, SortApplication, User
 from .serializers import DocumentSerializer, OpportunitySerializer, ApplicantSerializer, ApplicationSerializer ,UserSerializer 
 from .service import submit_application, generate_token, send_emails
 from django.contrib.auth import authenticate, get_user_model
@@ -273,13 +275,13 @@ def get_recent_applications(request):
 
 
 @api_view(['POST'])
-def submit_applicant(request):
+def submit_applicant(request,applicant_id):
     if request.method == 'POST':
         data = request.data
         print(data)
         # Handle the document data
         document_data = data.get('document', {})
-
+        
         # Create a DocumentSerializer instance for document validation
         document_serializer = DocumentSerializer(data=document_data)
 
@@ -288,22 +290,34 @@ def submit_applicant(request):
             # Save the document and get the serialized data as a dictionary
             document = document_serializer.save()
             document_data = document_serializer.data
+            download_directory = 'C:\\Users\\umoha\\Downloads\\'
+            document_name = document_data.get('name')
+            pdb.set_trace()
 
-            # Update the data with the document ID
-            data['document'] = document.id
-          
+            # Source file path in the "Downloads" directory
+            downloads_dir = os.path.expanduser("~\Downloads")  # Get the path to the user's Downloads directory
+            source_file = os.path.join(downloads_dir,document_name)  # Replace 'your_file.txt' with the actual file name
+
+            # Destination file path
+            destination_dir = 'C:\\Users\\umoha\\OneDrive\\Bureau\\pfe\\front kemel\\dashboard\\react-ui\\public'  # Replace with the desired destination directory
+            destination_file = os.path.join(destination_dir, document_name)  # Replace 'new_file.txt' with the desired destination file name
+            pdb.set_trace() 
+            # Copy the file
+            shutil.copy(source_file, destination_file)
         
             print(data)
              
             # Create an ApplicantSerializer instance for applicant validation
             applicant_serializer = ApplicantSerializer(data=data)
+            
            
             if applicant_serializer.is_valid():
-                print("valid applicant serializer")
+                print("valid applicant serializer"),
                 pdb.set_trace()
                 # Save the applicant
-                applicant_serializer.save()
-                return Response(applicant_serializer.data, status=status.HTTP_201_CREATED)
+                applicant=applicant_serializer.save()
+               
+                return Response(applicant, status=status.HTTP_201_CREATED)
             else:
                 # Handle errors in the applicant data
                 return Response(applicant_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -362,14 +376,24 @@ def get_user_by_id(request, user_id):
         return Response(serializer.data, status=status.HTTP_200_OK)
     except User.DoesNotExist:
         return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+@api_view(['GET'])
+def get_applicant_by_id(request, user_id):
+        try:
+            user = Applicant.objects.get(user_ptr_id=user_id)
+            serializer = ApplicantSerializer(user)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+#get_document_by_id
+@api_view(['GET'])
+def get_document_by_id(request, document_id):
+    try:
+        document = Document.objects.get(id=document_id)
+        serializer = DocumentSerializer(document)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Document.DoesNotExist:
+        return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
-class ApplicantCreateView(generics.ListCreateAPIView):
-    queryset = Applicant.objects.all()
-    serializer_class = ApplicantSerializer
-    lookup_field = 'user_ptr__id'
-class ApplicantRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Applicant.objects.all()
-    serializer_class = ApplicantSerializer
-    lookup_field = 'user_ptr__id'
+
 

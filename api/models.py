@@ -10,8 +10,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     class Meta:
         app_label = 'api'
     id = models.AutoField(primary_key=True)
-    username = models.CharField( unique= True)
-    email = models.EmailField(unique= True )
+    username = models.CharField( blank=True)
+    email = models.EmailField( blank=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     
@@ -30,6 +30,8 @@ class User(AbstractBaseUser, PermissionsMixin):
 class Document(models.Model):
     class Meta:
         app_label = 'api'
+    name = models.CharField( blank=True)
+
     id = models.AutoField(primary_key=True)    
     base64_data = models.CharField()
 
