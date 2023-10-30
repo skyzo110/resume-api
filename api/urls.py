@@ -27,8 +27,9 @@ urlpatterns=[
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/user/<int:user_id>/', views.get_user_by_id, name='get_user_by_id'),
     path('api/applicant/<int:user_id>/', views.get_applicant_by_id, name='get_user_by_id'),
-       path('api/document/<int:document_id>/', views.get_document_by_id, name='get_document_by_id'),
-    path('api/sortedapplicants/<int:filter/', views.get_sorted_applicants, name='get_sorted_applicant'),
+    path('api/document/<int:document_id>/', views.get_document_by_id, name='get_document_by_id'),
+    path('filtered/applicants/', views.get_applicants_by_accepted, name='applications-by-accepted'),
+    
     
     
 ]

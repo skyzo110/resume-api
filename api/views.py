@@ -162,6 +162,10 @@ def get_all_opportunities(request):
     return Response(serializer.data)
 
 
+class ApplicantRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Opportunity.objects.all()
+    serializer_class = ApplicantSerializer
+    
 class OpportunityRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Opportunity.objects.all()
     serializer_class = OpportunitySerializer
@@ -346,17 +350,34 @@ def get_all_applicants(request):
     return Response({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 @api_view(['GET'])
-def get_sorted_applicants(request, filter):
-    if filter not in ('0', '1', '2'):
-        return Response({'error': 'Invalid filter value. Use 0 or 1 or 2.'}, status=status.HTTP_400_BAD_REQUEST)
+def get_applicants_by_accepted(request):
+    # Get the 'accepted' value from the query parameters (e.g., /applications/?accepted=1 or /applications/?accepted=2)
+    accepted_value = request.query_params.get('accepted')
+    if accepted_value is not None:
+        # Ensure that the provided 'accepted' value is either '1' or '2'
+        if accepted_value in ['1', '2']:
+            
+            # Filter sorted applications based on the provided 'accepted' value
+            sorted_applications = SortApplication.objects.filter(accepted=accepted_value)
 
-    all_applicants = SortApplication.applicant.filter(accepted=filter)
+            # Retrieve the associated applicants from the sorted applications
+            applicants = [sorted_applicant.applicant for sorted_applicant in sorted_applications]
 
-    if not all_applicants:
-        return Response(None, status=status.HTTP_204_NO_CONTENT)  # Return None with a 204 No Content status
-    else:
-        serializer = ApplicationSerializer(all_applicants, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+            # Serialize the retrieved applicants using the appropriate serializer
+            serializer = ApplicantSerializer(applicants, many=True)
+
+            return Response(serializer.data, status=200)
+        else:
+            return Response({'error': 'Invalid accepted value'}, status=400)
+
+    return Response({'error': 'Accepted value not provided'}, status=400)
+
+
+
+
+
+
+
 
 
 class ApplicationListCreateView(generics.ListCreateAPIView):
