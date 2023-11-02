@@ -43,8 +43,8 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587  # Use the appropriate port for your SMTP server
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'hrmanagerpfe@gmail.com'
-EMAIL_HOST_PASSWORD = 'vspe styr ekhl hlec'
+EMAIL_HOST_USER = 'pfeeme@gmail.com'
+EMAIL_HOST_PASSWORD = 'ezuj filc zuqw lcuf'
 EMAIL_USE_SSL = False  # Set to True if you're using SSL
 INSTALLED_APPS = [
     'api.apps.ApiConfig',
@@ -126,6 +126,7 @@ CORS_ALLOW_METHODS = [
     'POST',
     'PUT',
     'DELETE',
+    'PATCH'
 ]
 
 CORS_ALLOW_HEADERS = [

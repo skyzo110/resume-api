@@ -17,11 +17,11 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     def get_token(cls, user):
         token = super().get_token(user)
 
-        # Add custom claims
         token['id'] = user.id
         token['email'] = user.email
-        token['username'] = user.username   
-        # ...
+        token['is_superuser'] = user.is_superuser
+        
+         
 
         return token 
 
@@ -30,6 +30,7 @@ class ApplicantSerializer(serializers.ModelSerializer):
     class Meta:
         model = Applicant
         fields = '__all__'
+        
     def create(self, validated_data):
         print(validated_data)
         document = validated_data.pop('document')  # Extract the document data
@@ -39,7 +40,6 @@ class ApplicantSerializer(serializers.ModelSerializer):
             'base64_data': document.base64_data,  # Replace this with the actual field name
         }
     
-        pdb.set_trace()
 
         print(document_data)
         document, created = Document.objects.get_or_create(**document_data)

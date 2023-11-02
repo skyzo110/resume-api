@@ -5,6 +5,7 @@ from django.forms import ValidationError
 from django.shortcuts import render
 from inspect import Traceback
 import pdb
+from django.contrib.auth.models import Group
 from django.urls import reverse
 from django.utils.html import format_html
 from django.contrib import admin
@@ -29,6 +30,7 @@ from django.http import HttpResponseRedirect
 from .forms import CustomUserAdminForm
 from django.contrib.auth.views import LoginView
 import jwt
+from django.contrib.auth.hashers import make_password
 
 
 
@@ -73,18 +75,16 @@ def login(request):
         user = authenticate(request, email=email, password=password)
  
         #check if user is HR or not
-        if user.id==1:
-            user.is_superuser = True
+        
             
 
         if user is not None:
             # Generate a token for the authenticated user
             token = generate_token(user)
 
-            if user.is_superuser:
-                return Response({'message': 'HR logged in successfully', 'token': token,"id":user.id,"is_superusr":user.is_superuser}, status=status.HTTP_200_OK)
-            else:
-                return Response({'message': 'User logged in successfully', 'token': token,"id":user.id,"is_superusr":user.is_superuser}, status=status.HTTP_200_OK)
+            
+            return Response({'message': 'User logged in successfully', 'token': token,"id":user.id,"is_superusr":user.is_superuser}, status=status.HTTP_200_OK)
+            
         else:
             return Response({'message': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -92,7 +92,14 @@ def login(request):
 
 
 
-
+class DocumentCreateView(APIView):
+    def post(self, request, format=None):
+        document_serializer = DocumentSerializer(data=request.data)
+        if document_serializer.is_valid():
+            document = document_serializer.save()
+            return Response({'document_id': document.id}, status=status.HTTP_201_CREATED)
+        return Response(document_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
 class RegistrationView(APIView):
     def post(self, request):
        # print(request.headers)
@@ -108,6 +115,10 @@ class RegistrationView(APIView):
                 message = 'HR registered successfully'
             else:
                 message = 'User registered successfully'
+                
+                applicant=Applicant.objects.create(user_ptr_id=user.id)
+                applicant.save()
+
 
             # Generate a token for the registered user
             token = generate_token(user)
@@ -116,7 +127,27 @@ class RegistrationView(APIView):
             return Response({'message': message, 'access_token': token,"id":user.id }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+class ApplicantRegistrationView(generics.CreateAPIView):
+    queryset = Applicant.objects.all()
+    serializer_class = ApplicantSerializer
+    def perform_create(self, serializer):
+        # Exclude the 'groups' field from the serializer before saving
+        serializer.validated_data.pop('groups', None)
+        serializer.validated_data.pop('user_permissions', None)
+         # Get the password from the serializer data
+        password = serializer.validated_data.get('password')
 
+        # Encode the password with a secret key using Django's make_password function
+        encoded_password = make_password(password)
+
+        # Replace the original password with the encoded password
+        serializer.validated_data['password'] = encoded_password
+
+        # Save the user with the encoded password
+        user = serializer.save()
+
+    
+        
 
 @api_view(['POST'])
 def submit_opportunity(request):
@@ -161,11 +192,30 @@ def get_all_opportunities(request):
     
     return Response(serializer.data)
 
-
-class ApplicantRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Opportunity.objects.all()
-    serializer_class = ApplicantSerializer
+class ApplicantListCreateView(generics.ListCreateAPIView):
     
+    queryset = Applicant.objects.all()
+    serializer_class = ApplicantSerializer
+ 
+class ApplicantRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Applicant.objects.all()
+    serializer_class = ApplicantSerializer
+    def perform_update(self, serializer):
+
+        # Check if the 'password' field is being updated
+        if 'password' in serializer.validated_data:
+            # Get the new password from the serializer data
+            new_password = serializer.validated_data.get('password')
+
+            # Encode the new password with a secret key using Django's make_password function
+            encoded_password = make_password(new_password)
+
+            # Replace the original password with the encoded password
+            serializer.validated_data['password'] = encoded_password
+
+        # Perform the update with the encoded password or without it
+        serializer.save()
+
 class OpportunityRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Opportunity.objects.all()
     serializer_class = OpportunitySerializer
@@ -191,32 +241,30 @@ def get_opportunity_by_id(request, opportunity_id):
 
     return Response(serializer.data)
 
+from rest_framework.exceptions import ValidationError
+
 @api_view(['GET'])
-def apply(request, applicant_id, opportunity_id):  
+def apply(request, applicant_id, opportunity_id):
     try:
+        # Check if the application already exists for the same applicant and opportunity
+        existing_application = Application.objects.filter(applicant=applicant_id, opportunity=opportunity_id).first()
+
+        if existing_application:
+            raise ValidationError("You have already submitted an application for this opportunity.")
+
+        # Calculate the similarity score and submit the application
         similarity_score = submit_application(applicant_id, opportunity_id)
 
         if similarity_score is not None:
-            # Create and save a new Application instance with the similarity score as a numeric value
-            # applicant = Applicant.objects.get(pk=applicant_id)
-            # opportunity = Opportunity.objects.get(pk=opportunity_id)
-
-            # Format the similarity score as a percentage with two decimal places
-            # formatted_score = round(similarity_score, 2)
-
-            # application = Application(
-            #     applicant=applicant,
-            #     opportunity=opportunity,
-            #     score=formatted_score
-            # )
-            #application.save()
-
             return Response({'detail': 'Application submitted successfully.'}, status=status.HTTP_200_OK)
         else:
             return Response({'error': 'Failed to submit the application.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    except ValidationError as ve:
+        return Response({'error': str(ve)}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @api_view(['POST'])
 def accept_application(request, application_id):
@@ -268,12 +316,19 @@ def get_recent_applications(request):
     try:
         # Customize the queryset to retrieve recent applications as per your logic
         # For example, you can order by created_date to get the most recent applications and filter by accepted status
-        
-        recent_applications = Application.objects.filter(accepted=0).order_by('-created_date')[:10]  
+        recent_applications = Application.objects.filter(accepted=0).order_by('-created_date')[:10]
 
-        serializer = ApplicationSerializer(recent_applications, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        application_data = []  # Create a list to hold the customized data
+        for application in recent_applications:
+            # Customize the data for each application
+            application_data.append({
+                'id': application.id,
+                'applicantFullName': application.applicant.full_name,
+                'score': application.score,
+                'created_date': application.created_date,
+            })
 
+        return Response(application_data, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -296,7 +351,7 @@ def submit_applicant(request,applicant_id):
             document_data = document_serializer.data
             download_directory = 'C:\\Users\\umoha\\Downloads\\'
             document_name = document_data.get('name')
-            pdb.set_trace()
+            
 
             # Source file path in the "Downloads" directory
             downloads_dir = os.path.expanduser("~\Downloads")  # Get the path to the user's Downloads directory
@@ -305,7 +360,7 @@ def submit_applicant(request,applicant_id):
             # Destination file path
             destination_dir = 'C:\\Users\\umoha\\OneDrive\\Bureau\\pfe\\front kemel\\dashboard\\react-ui\\public'  # Replace with the desired destination directory
             destination_file = os.path.join(destination_dir, document_name)  # Replace 'new_file.txt' with the desired destination file name
-            pdb.set_trace() 
+            
             # Copy the file
             shutil.copy(source_file, destination_file)
         
@@ -317,7 +372,7 @@ def submit_applicant(request,applicant_id):
            
             if applicant_serializer.is_valid():
                 print("valid applicant serializer"),
-                pdb.set_trace()
+                
                 # Save the applicant
                 applicant=applicant_serializer.save()
                
@@ -414,6 +469,11 @@ def get_document_by_id(request, document_id):
         return Response(serializer.data, status=status.HTTP_200_OK)
     except Document.DoesNotExist:
         return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+
+class UserRetrieveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
 
 
 

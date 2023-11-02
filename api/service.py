@@ -29,7 +29,7 @@ nltk.download('punkt')
 def calculate_and_assign_score(application):
     applicant = application.applicant
     opportunity = application.opportunity
-    pdb.set_trace()
+    
     # Retrieve and preprocess the resume and job description
     pdf_data = applicant.document.base64_data
     resume = preprocess_resume(applicant.document.b64decode(pdf_data))
@@ -91,23 +91,6 @@ def checkExistance(userId, opportunityId, file):
     
     return exists
 
-def apply(request):
-
-   user = request.user  # Assuming you're using DRF's authentication system
-   serializer = ApplicationSerializer(data=request.data)
-
-   if serializer.is_valid():
-         # Check if the user has already applied to this opportunity with the same file
-         user_id = user.id
-         opportunity_id = serializer.validated_data['opportunity'].id
-         resume = serializer.validated_data['resume']
-
-         if checkExistance(user_id=user_id, opportunity_id=opportunity_id, resume=resume) :
-             return  {'detail': 'You have already applied to this opportunity with the same file.'} 
-
-         # Create a new application
-         serializer.save(user=user)
-         return  {'detail': 'Application submitted successfully.'}  
   
   # Function to calculate cosine similarity
 def calculate_cosine_similarity(text1, text2):
@@ -127,6 +110,7 @@ def calculate_cosine_similarity(text1, text2):
 
 @transaction.atomic  # Use atomic transaction for database operations
 def submit_application(applicant_id, opportunity_id):
+    
     try:
         # Retrieve the Applicant instance based on the provided ID
         applicant = Applicant.objects.get(pk=applicant_id)
@@ -136,7 +120,7 @@ def submit_application(applicant_id, opportunity_id):
 
         # Decode the base64 data to obtain the PDF content
         resume_pdf = base64.b64decode(pdf_data)
-
+ 
         # Use PyPDF2's PdfReader to read text content from the decoded PDF data
         pdf_reader = PdfReader(io.BytesIO(resume_pdf))
         resume = ""

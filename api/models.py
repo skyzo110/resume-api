@@ -1,6 +1,6 @@
 from django.db import models
 from django.utils import timezone
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, Group
 from django.contrib.auth import get_user_model
 from .managers import CustomUserManager
 
@@ -10,10 +10,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     class Meta:
         app_label = 'api'
     id = models.AutoField(primary_key=True)
-    username = models.CharField( blank=True)
-    email = models.EmailField( blank=True)
+    username = models.CharField( unique=True)
+    email = models.EmailField( unique=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+    
     
 
     objects = CustomUserManager()
@@ -47,8 +48,10 @@ class Applicant(User):
     city = models.CharField(max_length=255)
     state = models.CharField(max_length=255)
     zip_code = models.CharField(max_length=255)  
-    document = models.OneToOneField(Document, on_delete=models.CASCADE)  
+    document = models.OneToOneField(Document, on_delete=models.CASCADE, blank=True, null=True)
+    
 
+    
      
     @property
     def full_name(self):
